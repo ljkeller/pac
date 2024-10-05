@@ -129,7 +129,7 @@ class UrbanSoundDataSet(Dataset):
         sound_fp = self.sounds[idx]
 
         match = re.search(r'\d+-(\d)-\d+-\d+\.wav$', str(sound_fp))
-        label = match.group(1) if match else -1
+        label = torch.tensor(int(match.group(1)) if match else -1)
 
         # normalize here is converting native sample type to f32
         waveform, native_sample_rate = torchaudio.load(sound_fp, normalize=True)
