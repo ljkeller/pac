@@ -14,6 +14,9 @@ from torch.utils.data import Dataset, DataLoader
 # print(f'Torch version: {torch.__version__}')
 # print(f'Torchaudio version: {torchaudio.__version__}')
 # print(f'Torch cuda enabled: {torch.cuda.is_available()}')
+TARGET_SAMPLE_RATE = 22050
+TARGET_DURATION = 4
+LEN_IDEAL_WF = TARGET_DURATION * TARGET_SAMPLE_RATE
 
 def examine_urban_sound_df(df):
     df_copy = df.copy()
@@ -108,10 +111,11 @@ class Rescale(object):
         return ret_wf
 
 class UrbanSoundDataSet(Dataset):
-    def __init__(self, urban_audio_path, relativepaths, transform=None, sample_rate = None):
+    def __init__(self, urban_audio_path, relativepaths, transform=None, sample_rate = None, mel_kwargs = None):
         self.sounds = list({urban_audio_path/path for path in relativepaths})
         self.resampled_sample_rate = sample_rate
         self.transform = transform
+        self.mel_kwargs = mel_kwargs if mel_kwargs is not None else {}
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
             idx = idx.tolist()
@@ -125,7 +129,7 @@ class UrbanSoundDataSet(Dataset):
         transforms = [
             T.Resample(native_sample_rate, self.resampled_sample_rate),
             Rescale(len_ideal_wf),
-            T.MelSpectrogram()
+            T.MelSpectrogram(self.resampled_sample_rate, **self.mel_kwargs)
         ]
         for t in transforms:
             waveform = t(waveform)
