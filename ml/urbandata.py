@@ -36,9 +36,13 @@ def examine_urban_sound_df(df):
     print(f"Duration statistics: \n{df_copy['duration'].describe()}")
 
 
-def k_fold_urban_sound(metadata_path):
+def k_fold_urban_sound(metadata_path, dry_run=False):
     """
     Extract the 10 recommended folds of UrbanSound8K
+
+    Args:
+        metadata_path (str): Path to the UrbanSound8K metadata file.
+        dry_run (bool): If True, the function will only yield 5% of the data for testing purposes.
 
     Returns:
         a list of map folds in the form:
@@ -75,7 +79,10 @@ def k_fold_urban_sound(metadata_path):
             lambda r: f"fold{r['fold']}/{r['slice_file_name']}", axis=1
         )
 
-        folds.append({'train': train_paths.tolist(), 'validation': validation_paths.tolist()})
+        folds.append(
+            {'train': train_paths.tolist()[:len(train_paths)//20 if dry_run else None],
+             'validation': validation_paths.tolist()[:len(validation_paths)//20 if dry_run else None]}
+        )
         print('-----------------------------------------------------------')
     print("\n\n")
 
