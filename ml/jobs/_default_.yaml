@@ -4,7 +4,7 @@ model:
     # layer_type comes from torch.nn
     # layer keys are passed as kwargs to the layer
     - layer_type: Conv2d
-      in_channels: 3   # Replace X_channels with the actual number of input channels
+      in_channels: 2
       out_channels: 60
       kernel_size: 5
     - layer_type: BatchNorm2d
@@ -37,7 +37,7 @@ model:
       dim: 1
 ml_parameters:
   # From torch.nn
-  loss_fn: cross_entropy
+  loss_fn: CrossEntropyLoss
   batch_size: 32
   is_shuffled: True
   learning_rate: 0.001
