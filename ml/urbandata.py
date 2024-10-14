@@ -16,6 +16,7 @@ TARGET_SAMPLE_RATE = 22050
 TARGET_DURATION = 4
 LEN_IDEAL_WF = TARGET_DURATION * TARGET_SAMPLE_RATE
 
+BASELINE_MODEL_ACCURACY = 0.68
 
 def examine_urban_sound_df(df):
     '''Gather and print statistics about the UrbanSound8K dataset'''
@@ -36,9 +37,114 @@ def examine_urban_sound_df(df):
     print(f"Duration statistics: \n{df_copy['duration'].describe()}")
 
 
+def train_one_epoch(dl, model, optimizer, loss_fn, device):
+    model.train()
+
+    running_loss = 0.
+    running_batch_loss = 0.
+    total = 0
+    correct = 0
+    # avg_batch_loss = 0
+
+    for batch_idx, batch in enumerate(dl):
+        (Xs, ys) = batch['spectrogram'].to(device), batch['label'].to(device)
+
+        optimizer.zero_grad()
+
+        yhats = model(Xs)
+        _, yhats_as_idx = torch.max(yhats, 1)
+
+        loss = loss_fn(yhats, ys)
+        loss.backward()
+
+        optimizer.step()
+
+        running_loss += loss.item()
+        running_batch_loss += loss.item()
+
+        total += ys.size(0)
+        correct += (ys == yhats_as_idx).sum().item()
+
+#         print(f'Training ground truth {ys}')
+#         print(f'Training predictions {yhats_as_idx}')
+
+#         if batch_idx % batch_print_threshold == batch_print_threshold-1:
+#             last_loss = running_loss / batch_print_threshold #batch loss
+#             avg_batch_loss = running_batch_loss / batch_print_threshold
+#             print(f'\tbatch {batch_idx+1} loss: {avg_batch_loss}')
+#             running_batch_loss = 0
+
+    accuracy = correct / total
+    return running_loss / (batch_idx+1), accuracy
+
+def validate(validation_dl, model, loss_fn, device):
+    model.eval()
+
+    running_vloss = 0.
+    total = 0
+    correct = 0
+
+    with torch.no_grad():
+        for batch_idx, batch in enumerate(validation_dl):
+            (vXs, vys) = batch['spectrogram'].to(device), batch['label'].to(device)
+
+            vyhats = model(vXs)
+            _, vyhats_as_idx = torch.max(vyhats, 1)
+            vloss = loss_fn(vyhats, vys)
+            running_vloss += vloss
+
+            total += vys.size(0)
+            correct += (vys == vyhats_as_idx).sum().item()
+#             print(f'Validation ground truth {vys}')
+#             print(f'Validation redictions {vyhats_as_idx}')
+    accuracy = correct/total
+    return running_vloss.to('cpu') / (batch_idx+1), accuracy
+
+
+def plot_fold_results(foldidx, losses_for_fold, acc_for_fold):
+    plt.figure(figsize=(10, 6))
+    train_losses, val_losses = zip(*losses_for_fold)
+    train_acc, val_acc = zip(*acc_for_fold)
+
+    plt.subplot(2, 1, 1)
+    plt.plot(train_losses, label='Training Loss')
+    plt.plot(val_losses, label='Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel(f'Losses for fold {foldidx}')
+    plt.title('Loss')
+    plt.legend()
+
+    plt.subplot(2, 1, 2)
+    plt.plot(train_acc, label='Training Acc')
+    plt.plot(val_acc, label='Validation Acc')
+    plt.xlabel('Epochs')
+    plt.ylabel(f'Accuracy for fold {foldidx}')
+    plt.ylim((0, BASELINE_MODEL_ACCURACY))
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_final_results(fold_accuracies):
+    avg_accuracy = np.mean(fold_accuracies)
+    
+    plt.figure(figsize=(10,6))
+    
+    plt.subplot(1, 2, 1)
+    plt.plot(fold_accuracies, label='Fold Accuracies')
+    
+    plt.subplot(1, 2, 2)
+    plt.axhline(y=baseline_model_accuracy, color='r')
+    plt.text(0, baseline_model_accuracy+0.01, f'Baseline: {baseline_model_accuracy:.2f}', color='r', ha='center')
+    plt.bar(['Avg Accuracy'], [avg_accuracy])
+    plt.ylabel('Accuracy')
+
+
 def k_fold_urban_sound(metadata_path, dry_run=False):
     """
-    Extract the 10 recommended folds of UrbanSound8K
+    Extract the 10 recommended folds of UrbanSound8K. Combine the validation training accuracy from each fold
+    to get a more accurate estimate of the model's performance.
 
     Args:
         metadata_path (str): Path to the UrbanSound8K metadata file.

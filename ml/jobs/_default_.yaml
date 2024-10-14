@@ -35,7 +35,7 @@ model:
       out_features: 10
     - layer_type: Softmax
       dim: 1
-ml_parameters:
+ml_parameters: # Injected into job
   # From torch.nn
   loss_fn: CrossEntropyLoss
   batch_size: 32
@@ -43,14 +43,14 @@ ml_parameters:
   learning_rate: 0.001
   momentum: 0.9
   epochs: 10
-audio_parameters:
+audio_parameters: # Injected into job
   sample_rate: 22050
   n_channels: 2
 # Parameters for mel spectrogram, passed to torch audio.transforms.MelSpectrogram
 mel_kwargs:
   n_fft: 1024
   n_mels: 60
-job_parameters:
+job_parameters: # Injected into job
   dry_run: False
   data_path: '~/sound_datasets/urbansound8k'
   verbose: True
