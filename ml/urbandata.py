@@ -1,7 +1,5 @@
 import re
 
-import librosa
-import matplotlib.pyplot as plt
 import pandas as pd
 import torch
 import torchaudio
@@ -14,9 +12,9 @@ from torch.utils.data import Dataset
 # print(f'Torch cuda enabled: {torch.cuda.is_available()}')
 TARGET_SAMPLE_RATE = 22050
 TARGET_DURATION = 4
-LEN_IDEAL_WF = TARGET_DURATION * TARGET_SAMPLE_RATE
 
 BASELINE_MODEL_ACCURACY = 0.68
+
 
 def examine_urban_sound_df(df):
     '''Gather and print statistics about the UrbanSound8K dataset'''
@@ -77,6 +75,7 @@ def train_one_epoch(dl, model, optimizer, loss_fn, device):
     accuracy = correct / total
     return running_loss / (batch_idx+1), accuracy
 
+
 def validate(validation_dl, model, loss_fn, device):
     model.eval()
 
@@ -86,7 +85,8 @@ def validate(validation_dl, model, loss_fn, device):
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(validation_dl):
-            (vXs, vys) = batch['spectrogram'].to(device), batch['label'].to(device)
+            (vXs, vys) = (batch['spectrogram'].to(device),
+                          batch['label'].to(device))
 
             vyhats = model(vXs)
             _, vyhats_as_idx = torch.max(vyhats, 1)
@@ -101,54 +101,16 @@ def validate(validation_dl, model, loss_fn, device):
     return running_vloss.to('cpu') / (batch_idx+1), accuracy
 
 
-def plot_fold_results(foldidx, losses_for_fold, acc_for_fold):
-    plt.figure(figsize=(10, 6))
-    train_losses, val_losses = zip(*losses_for_fold)
-    train_acc, val_acc = zip(*acc_for_fold)
-
-    plt.subplot(2, 1, 1)
-    plt.plot(train_losses, label='Training Loss')
-    plt.plot(val_losses, label='Validation Loss')
-    plt.xlabel('Epochs')
-    plt.ylabel(f'Losses for fold {foldidx}')
-    plt.title('Loss')
-    plt.legend()
-
-    plt.subplot(2, 1, 2)
-    plt.plot(train_acc, label='Training Acc')
-    plt.plot(val_acc, label='Validation Acc')
-    plt.xlabel('Epochs')
-    plt.ylabel(f'Accuracy for fold {foldidx}')
-    plt.ylim((0, BASELINE_MODEL_ACCURACY))
-    plt.legend()
-
-    plt.tight_layout()
-    plt.show()
-
-
-def plot_final_results(fold_accuracies):
-    avg_accuracy = np.mean(fold_accuracies)
-    
-    plt.figure(figsize=(10,6))
-    
-    plt.subplot(1, 2, 1)
-    plt.plot(fold_accuracies, label='Fold Accuracies')
-    
-    plt.subplot(1, 2, 2)
-    plt.axhline(y=baseline_model_accuracy, color='r')
-    plt.text(0, baseline_model_accuracy+0.01, f'Baseline: {baseline_model_accuracy:.2f}', color='r', ha='center')
-    plt.bar(['Avg Accuracy'], [avg_accuracy])
-    plt.ylabel('Accuracy')
-
-
 def k_fold_urban_sound(metadata_path, dry_run=False):
     """
-    Extract the 10 recommended folds of UrbanSound8K. Combine the validation training accuracy from each fold
-    to get a more accurate estimate of the model's performance.
+    Extract the 10 recommended folds of UrbanSound8K. Combine the validation
+    training accuracy from each fold to get a more accurate estimate of the
+    model's performance.
 
     Args:
         metadata_path (str): Path to the UrbanSound8K metadata file.
-        dry_run (bool): If True, the function will only yield 5% of the data for testing purposes.
+        dry_run (bool): If True, the function will only yield 5% of the data 
+            for testing purposes.
 
     Returns:
         a list of map folds in the form:
@@ -180,7 +142,9 @@ def k_fold_urban_sound(metadata_path, dry_run=False):
         print('Validation set info: \n')
         examine_urban_sound_df(validation)
 
-        train_paths = train.apply(lambda r: f"fold{r['fold']}/{r['slice_file_name']}", axis=1)
+        train_paths = train.apply(
+            lambda r: f"fold{r['fold']}/{r['slice_file_name']}", axis=1
+        )
         validation_paths = validation.apply(
             lambda r: f"fold{r['fold']}/{r['slice_file_name']}", axis=1
         )
@@ -229,9 +193,18 @@ class Rescale(object):
 
 
 class UrbanSoundDataSet(Dataset):
-    def __init__(self, urban_audio_path, relativepaths, transform=None, sample_rate=None, mel_kwargs=None):
+    def __init__(
+        self,
+        urban_audio_path,
+        relativepaths,
+        transform=None,
+        sample_rate=None,
+        mel_kwargs=None,
+        target_duration=4
+    ):
         self.sounds = list({urban_audio_path/path for path in relativepaths})
-        self.resampled_sample_rate = sample_rate
+        self.resampled_sample_rate = int(sample_rate)
+        self.target_duration = target_duration
         self.transform = transform
         self.mel_kwargs = mel_kwargs if mel_kwargs is not None else {}
 
@@ -256,16 +229,18 @@ class UrbanSoundDataSet(Dataset):
         return sample
 
     def _get_transforms(self, native_sr):
+        len_ideal_wf = self.target_duration * self.resampled_sample_rate
         return [
             T.Resample(native_sr, self.resampled_sample_rate),
-            Rescale(LEN_IDEAL_WF),
+            Rescale(len_ideal_wf),
             T.MelSpectrogram(self.resampled_sample_rate, **self.mel_kwargs)
         ]
 
     def getXShape(self):
         '''Return the common shape of sample data (after preprocessing)'''
 
-        # This method is robust to changes in torch defaults, but its annoying we have to load a sample
+        # This method is robust to changes in torch defaults, 
+        # but its annoying we have to load a sample
         sound_fp = self.sounds[0]
         wf, native_sr = torchaudio.load(sound_fp, normalize=True)
         tforms = self._get_transforms(native_sr)
@@ -278,12 +253,3 @@ class UrbanSoundDataSet(Dataset):
 
     def __len__(self):
         return len(self.sounds)
-
-
-def plot_spectrogram(spectrogram, title=None, ylabel="freq_bin", ax=None):
-    if ax is None:
-        _, ax = plt.subplots(1, 1)
-    if title is not None:
-        ax.set_title(title)
-    ax.set_ylabel(ylabel)
-    ax.imshow(librosa.power_to_db(spectrogram), origin="lower", aspect="auto", interpolation="nearest")

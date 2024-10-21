@@ -1,0 +1,58 @@
+model:
+  name: 'SimpleCNN'
+  architecture:
+    # layer_type comes from torch.nn
+    # layer keys are passed as kwargs to the layer
+    - layer_type: Conv2d
+      in_channels: 2
+      out_channels: 60
+      kernel_size: 5
+    - layer_type: BatchNorm2d
+      num_features: 60
+    - layer_type: MaxPool2d
+      kernel_size: 2
+    - layer_type: ReLU
+    - layer_type: Conv2d
+      in_channels: 60
+      out_channels: 120
+      kernel_size: 5
+    - layer_type: BatchNorm2d
+      num_features: 120
+    - layer_type: MaxPool2d
+      kernel_size: 2
+    - layer_type: ReLU
+    - layer_type: Flatten
+    - layer_type: Dropout
+      p: 0.5
+    - layer_type: Linear
+      in_features: 120 * 12 * 40
+      out_features: 256
+    - layer_type: ReLU
+    - layer_type: Dropout
+      p: 0.5
+    - layer_type: Linear
+      in_features: 256
+      out_features: 10
+    - layer_type: Softmax
+      dim: 1
+ml_parameters: # Injected into job
+  # From torch.nn
+  loss_fn: CrossEntropyLoss
+  batch_size: 32
+  is_shuffled: True
+  learning_rate: 0.001
+  momentum: 0.9
+  epochs: 10
+audio_parameters: # Injected into job
+  sample_rate: 22050
+  n_channels: 2
+# Parameters for mel spectrogram, passed to torch audio.transforms.MelSpectrogram
+mel_kwargs:
+  n_fft: 1024
+  n_mels: 60
+job_parameters: # Injected into job
+  dry_run: True
+  data_path: '~/sound_datasets/urbansound8k'
+  verbose: True
+  device: 'cuda'
+  repeat: 0
