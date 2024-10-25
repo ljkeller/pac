@@ -24,7 +24,7 @@ def plot_fold_results(foldidx, losses_for_fold, acc_for_fold):
     plt.plot(val_acc, label='Validation Acc')
     plt.xlabel('Epochs')
     plt.ylabel(f'Accuracy for fold {foldidx}')
-    plt.ylim((0, BASELINE_MODEL_ACCURACY))
+    plt.ylim((0, 1))
     plt.legend()
 
     plt.tight_layout()
@@ -48,7 +48,7 @@ def plot_final_results(fold_accuracies):
         f'Baseline: {BASELINE_MODEL_ACCURACY:.2f}', color='r', ha='center'
     )
     plt.bar(['Avg Accuracy'], [avg_accuracy])
-    plt.ylim((0, BASELINE_MODEL_ACCURACY+0.1))
+    plt.ylim((0, 1))
     plt.ylabel('Accuracy')
 
 
