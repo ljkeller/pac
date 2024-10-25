@@ -2,9 +2,9 @@ import re
 
 import pandas as pd
 import torch
+import torch.nn.functional as F
 import torchaudio
 import torchaudio.transforms as T
-import torch.nn.functional as F
 from torch.utils.data import Dataset
 
 # print(f'Torch version: {torch.__version__}')
@@ -17,7 +17,7 @@ BASELINE_MODEL_ACCURACY = 0.68
 
 
 def examine_urban_sound_df(df):
-    '''Gather and print statistics about the UrbanSound8K dataset'''
+    """Gather and print statistics about the UrbanSound8K dataset"""
     df_copy = df.copy()
     total = len(df_copy)
 
@@ -25,7 +25,7 @@ def examine_urban_sound_df(df):
     print(f"{'Class':<16} | {'Frequency':<10} | {'Percentage':<10}")
     print("-" * 40)
 
-    distribution = df_copy['class'].value_counts()
+    distribution = df_copy["class"].value_counts()
     for cls, freq in distribution.items():
         percentage = (freq / total) * 100
         print(f"{cls:<16} | {freq:<10} | {percentage:.2f}%")
@@ -38,14 +38,14 @@ def examine_urban_sound_df(df):
 def train_one_epoch(dl, model, optimizer, loss_fn, device):
     model.train()
 
-    running_loss = 0.
-    running_batch_loss = 0.
+    running_loss = 0.0
+    running_batch_loss = 0.0
     total = 0
     correct = 0
     # avg_batch_loss = 0
 
     for batch_idx, batch in enumerate(dl):
-        (Xs, ys) = batch['spectrogram'].to(device), batch['label'].to(device)
+        (Xs, ys) = batch["spectrogram"].to(device), batch["label"].to(device)
 
         optimizer.zero_grad()
 
@@ -63,30 +63,29 @@ def train_one_epoch(dl, model, optimizer, loss_fn, device):
         total += ys.size(0)
         correct += (ys == yhats_as_idx).sum().item()
 
-#         print(f'Training ground truth {ys}')
-#         print(f'Training predictions {yhats_as_idx}')
+    #         print(f'Training ground truth {ys}')
+    #         print(f'Training predictions {yhats_as_idx}')
 
-#         if batch_idx % batch_print_threshold == batch_print_threshold-1:
-#             last_loss = running_loss / batch_print_threshold #batch loss
-#             avg_batch_loss = running_batch_loss / batch_print_threshold
-#             print(f'\tbatch {batch_idx+1} loss: {avg_batch_loss}')
-#             running_batch_loss = 0
+    #         if batch_idx % batch_print_threshold == batch_print_threshold-1:
+    #             last_loss = running_loss / batch_print_threshold #batch loss
+    #             avg_batch_loss = running_batch_loss / batch_print_threshold
+    #             print(f'\tbatch {batch_idx+1} loss: {avg_batch_loss}')
+    #             running_batch_loss = 0
 
     accuracy = correct / total
-    return running_loss / (batch_idx+1), accuracy
+    return running_loss / (batch_idx + 1), accuracy
 
 
 def validate(validation_dl, model, loss_fn, device):
     model.eval()
 
-    running_vloss = 0.
+    running_vloss = 0.0
     total = 0
     correct = 0
 
     with torch.no_grad():
         for batch_idx, batch in enumerate(validation_dl):
-            (vXs, vys) = (batch['spectrogram'].to(device),
-                          batch['label'].to(device))
+            (vXs, vys) = (batch["spectrogram"].to(device), batch["label"].to(device))
 
             vyhats = model(vXs)
             _, vyhats_as_idx = torch.max(vyhats, 1)
@@ -95,10 +94,10 @@ def validate(validation_dl, model, loss_fn, device):
 
             total += vys.size(0)
             correct += (vys == vyhats_as_idx).sum().item()
-#             print(f'Validation ground truth {vys}')
-#             print(f'Validation redictions {vyhats_as_idx}')
-    accuracy = correct/total
-    return running_vloss.to('cpu') / (batch_idx+1), accuracy
+    #             print(f'Validation ground truth {vys}')
+    #             print(f'Validation redictions {vyhats_as_idx}')
+    accuracy = correct / total
+    return running_vloss.to("cpu") / (batch_idx + 1), accuracy
 
 
 def k_fold_urban_sound(metadata_path, dry_run=False):
@@ -109,7 +108,7 @@ def k_fold_urban_sound(metadata_path, dry_run=False):
 
     Args:
         metadata_path (str): Path to the UrbanSound8K metadata file.
-        dry_run (bool): If True, the function will only yield 5% of the data 
+        dry_run (bool): If True, the function will only yield 5% of the data
             for testing purposes.
 
     Returns:
@@ -126,20 +125,20 @@ def k_fold_urban_sound(metadata_path, dry_run=False):
     frame.info()
 
     print("\nSummarizing folds:")
-    print('-----------------------------------------------------------')
+    print("-----------------------------------------------------------")
     for i in range(1, 11):
-        train_mask = frame['fold'] != i
-        validation_mask = frame['fold'] == i
+        train_mask = frame["fold"] != i
+        validation_mask = frame["fold"] == i
         # TODO: Duration mask?
 
-        print(f'Training set size for fold {i} : {len(frame[train_mask])}')
+        print(f"Training set size for fold {i} : {len(frame[train_mask])}")
         train = frame[train_mask]
         print("Training set info: \n")
         examine_urban_sound_df(train)
 
-        print(f'Validation set size for fold {i} : {len(frame[validation_mask])}')
+        print(f"Validation set size for fold {i} : {len(frame[validation_mask])}")
         validation = frame[validation_mask]
-        print('Validation set info: \n')
+        print("Validation set info: \n")
         examine_urban_sound_df(validation)
 
         train_paths = train.apply(
@@ -150,10 +149,16 @@ def k_fold_urban_sound(metadata_path, dry_run=False):
         )
 
         folds.append(
-            {'train': train_paths.tolist()[:len(train_paths)//20 if dry_run else None],
-             'validation': validation_paths.tolist()[:len(validation_paths)//20 if dry_run else None]}
+            {
+                "train": train_paths.tolist()[
+                    : len(train_paths) // 20 if dry_run else None
+                ],
+                "validation": validation_paths.tolist()[
+                    : len(validation_paths) // 20 if dry_run else None
+                ],
+            }
         )
-        print('-----------------------------------------------------------')
+        print("-----------------------------------------------------------")
     print("\n\n")
 
     return folds
@@ -181,10 +186,10 @@ class Rescale(object):
             waveform = torch.stack((waveform, waveform))
 
         if len(waveform[0]) < self.output_size:
-            ret_wf = F.pad(waveform, (0, self.output_size-len(waveform[0]), 0, 0))
+            ret_wf = F.pad(waveform, (0, self.output_size - len(waveform[0]), 0, 0))
         elif len(waveform[0]) > self.output_size:
-            expanded_l = waveform[0][:self.output_size]
-            expanded_r = waveform[1][:self.output_size]
+            expanded_l = waveform[0][: self.output_size]
+            expanded_r = waveform[1][: self.output_size]
             ret_wf = torch.stack((expanded_l, expanded_r))
         else:
             ret_wf = waveform
@@ -200,9 +205,9 @@ class UrbanSoundDataSet(Dataset):
         transform=None,
         sample_rate=None,
         mel_kwargs=None,
-        target_duration=4
+        target_duration=4,
     ):
-        self.sounds = list({urban_audio_path/path for path in relativepaths})
+        self.sounds = list({urban_audio_path / path for path in relativepaths})
         self.resampled_sample_rate = int(sample_rate)
         self.target_duration = target_duration
         self.transform = transform
@@ -214,7 +219,7 @@ class UrbanSoundDataSet(Dataset):
 
         sound_fp = self.sounds[idx]
 
-        match = re.search(r'\d+-(\d)-\d+-\d+\.wav$', str(sound_fp))
+        match = re.search(r"\d+-(\d)-\d+-\d+\.wav$", str(sound_fp))
         label = torch.tensor(int(match.group(1)) if match else -1)
 
         # normalize here is converting native sample type to f32
@@ -233,13 +238,13 @@ class UrbanSoundDataSet(Dataset):
         return [
             T.Resample(native_sr, self.resampled_sample_rate),
             Rescale(len_ideal_wf),
-            T.MelSpectrogram(self.resampled_sample_rate, **self.mel_kwargs)
+            T.MelSpectrogram(self.resampled_sample_rate, **self.mel_kwargs),
         ]
 
     def getXShape(self):
-        '''Return the common shape of sample data (after preprocessing)'''
+        """Return the common shape of sample data (after preprocessing)"""
 
-        # This method is robust to changes in torch defaults, 
+        # This method is robust to changes in torch defaults,
         # but its annoying we have to load a sample
         sound_fp = self.sounds[0]
         wf, native_sr = torchaudio.load(sound_fp, normalize=True)

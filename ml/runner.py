@@ -1,7 +1,7 @@
 """runner.py: Batch process ML training jobs"""
 
+import tempfile
 import time
-import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -57,7 +57,7 @@ class TrainingJob:
         self.start_time = 0.0
         self.layers = []
         self.fold_accuracies = []
-        self.job_hash = str(uuid.uuid4())
+        self.temp_dir = tempfile.TemporaryDirectory()
 
         self.momentum = 0.9
         self.dry_run = False
@@ -124,14 +124,18 @@ class TrainingJob:
             #         print(f'LOSS train {avg_loss} val {avg_vloss}')
             print(f"Fold accuracy: {vacc*100:.2f}%")
 
-            plot_fold_results(fold_idx, losses_for_fold, accs_for_fold)
+            plot_fold_results(
+                fold_idx,
+                losses_for_fold,
+                accs_for_fold,
+                archive_path=Path(self.temp_dir.name),
+            )
             self.fold_accuracies.append(vacc)
 
         end_time = time.time()
         training_duration = end_time - start_time
 
-        # TODO: move this to success processing?
-        plot_final_results(self.fold_accuracies)
+        plot_final_results(self.fold_accuracies, archive_path=Path(self.temp_dir.name))
         self.kfold_valication_acc = np.mean(self.fold_accuracies)
         print(f"Training time: {training_duration:.2f} seconds")
 
@@ -159,6 +163,8 @@ class TrainingJob:
             self._failure_processing(exc_type, exc_value, traceback)
         else:
             self._success_processing()
+
+        self.temp_dir.cleanup()
 
         return False
 
@@ -209,12 +215,14 @@ class TrainingJob:
         exc = str(exc_type) if exc_type else "fail"
         dirname = f"{dtime}_{self.model_name}_E{self.epochs}_Exc{exc}"
 
+        # TODO:
         # mkdir dirname
-        # move contents from './tmp/<hash>' to dirname
+        # move contents from tmpdir to dirname
 
     def _success_processing(self):
         dtime = datetime.now().strftime("%Y-%m-%d_%H-%M")
         dirname = f"{dtime}_{self.model_name}_E{self.epochs}_Acc{kfold_valication_acc*100:.2f}"
 
+        # TODO:
         # mkdir dirname
-        # move contents from './tmp/<hash>' to dirname
+        # move contents from tmpdir to dirname
