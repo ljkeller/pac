@@ -110,6 +110,7 @@ class TrainingJob:
             )
 
             losses_for_fold, accs_for_fold = [], []
+            vacc = 0
             for _ in tqdm(range(self.epochs), desc="Epochs"):
                 avg_loss, acc = train_one_epoch(
                     train_dl, model, optimizer, self.loss_fn, self.device
