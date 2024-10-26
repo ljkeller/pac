@@ -2,8 +2,10 @@
 
 import logging
 import os
+import time
 from pathlib import Path
 
+# TODO: remove verbosity level from yaml
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 numeric_log_level = getattr(logging, log_level, logging.WARNING)
 
@@ -19,9 +21,14 @@ from runner import TrainingJob, get_job_files  # noqa: E402
 
 def process_training_batch(jobs_path=Path("./jobs")):
     """Run all jobs in the jobs directory"""
-
+    start_time = time.time()
     root_logger = logging.getLogger()
-    for job_path in get_job_files(jobs_path):
+
+    jobs = get_job_files(jobs_path)
+    jobs_len = len(jobs)
+    root_logger.info(f"Found {jobs_len} jobs to process.")
+    for idx, job_path in enumerate(jobs):
+        root_logger.info(f"Processing job {job_path.name}")
         file_handler = None
         try:
             root_logger.info(f"Starting job {job_path.name}.")
@@ -43,6 +50,10 @@ def process_training_batch(jobs_path=Path("./jobs")):
             if file_handler:
                 root_logger.removeHandler(file_handler)
                 file_handler.close()
+        root_logger.info(
+            f"Processed job {job_path.name}. {idx + 1}/{jobs_len} jobs processed."
+        )
+        root_logger.info(f"Elapsed time: {time.time() - start_time}")
 
 
 def main():

@@ -78,7 +78,7 @@ class TrainingJob:
             is stored
         """
 
-        self.path = job_path
+        self.job_path = job_path
         self.job = {}
         self.start_time = 0.0
         self.layers = []
@@ -196,7 +196,7 @@ class TrainingJob:
     def __enter__(self):
         self.start_time = time.time()
 
-        with open(self.path, "r") as f:
+        with open(self.job_path, "r") as f:
             self.job = yaml.load(f, yaml.FullLoader)
 
         return self
@@ -284,6 +284,10 @@ class TrainingJob:
 
         self.results_dir.rename(self.results_dir.parent / dirname)
 
+        # TODO: copy file over?
+        # new_job_path = self.results_dir / f"{self.job_path.name}"
+        # self.job_path.rename(new_job_path)
+
     def _success_processing(self):
         logger.info("Job trained succesfully- performing post-processing.")
 
@@ -296,3 +300,5 @@ class TrainingJob:
             dirname = f"{dtime}_{self.model_name}_E{self.epochs}_Acc{self.kfold_valication_acc*100:.2f}"
 
         self.results_dir.rename(self.results_dir.parent / dirname)
+        new_job_path = self.results_dir / f"{self.job_path.name}"
+        self.job_path.rename(new_job_path)
