@@ -18,36 +18,13 @@ from visualize import plot_final_results, plot_fold_results
 logger = logging.getLogger(__name__)
 
 
-def _get_jobs(jobs_path=Path("./jobs")):
+def get_job_files(jobs_path=Path("./jobs")):
     """Get all job files from the jobs directory"""
 
     # jobs starting with _ are ignored, like the default job
     return [
         f for f in jobs_path.iterdir() if f.is_file() and not f.name.startswith("_")
     ]
-
-
-def run_jobs(jobs_path=Path("./jobs"), log_level=logging.INFO):
-    """Run all jobs in the jobs directory"""
-    logger.setLevel(log_level)
-
-    for job_path in _get_jobs(jobs_path):
-        # TODO: Move log into tmpdir?
-        file_handler = logging.FileHandler(f"./{job_path.name}.log")
-        file_handler.setLevel(log_level)
-
-        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        file_handler.setFormatter(formatter)
-
-        logger.addHandler(file_handler)
-        try:
-            logger.info(f"Starting job {job_path.name}.")
-            with TrainingJob(job_path) as job:
-                job.train()
-            logger.info(f"Finished job {job_path.name}.")
-        finally:
-            logger.removeHandler(file_handler)
-            file_handler.close()
 
 
 class RuntimeNN(torch.nn.Module):

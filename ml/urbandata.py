@@ -10,6 +10,7 @@ import torchaudio.transforms as T
 from torch.utils.data import Dataset
 
 logger = logging.getLogger(__name__)
+
 logging.debug(f"Torch version: {torch.__version__}")
 logging.debug(f"Torchaudio version: {torchaudio.__version__}")
 logging.debug(f"Torch cuda enabled: {torch.cuda.is_available()}")
