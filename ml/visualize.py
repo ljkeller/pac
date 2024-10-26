@@ -45,10 +45,11 @@ def plot_fold_results(
     plt.legend()
 
     plt.tight_layout()
-    plt.show()
 
     if archive_path and archive_path.exists():
         plt.savefig(archive_path / f"fold_{fold}_results.png")
+    else:
+        plt.show()
 
 
 def plot_final_results(fold_accuracies, archive_path: Optional[Path] = None):
@@ -84,6 +85,8 @@ def plot_final_results(fold_accuracies, archive_path: Optional[Path] = None):
     plt.tight_layout()
     if archive_path and archive_path.exists():
         plt.savefig(archive_path / "final_results.png")
+    else:
+        plt.show()
 
 
 def plot_spectrogram(spectrogram, title=None, ylabel="freq_bin", ax=None):
