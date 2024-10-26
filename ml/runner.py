@@ -61,18 +61,28 @@ class TrainingJob:
         self.start_time = 0.0
         self.layers = []
         self.fold_accuracies = []
-        self.temp_dir = tempfile.TemporaryDirectory()
+
+        self._temp_dir = tempfile.TemporaryDirectory()
+        # to avoid confusion with the TemporaryDirectory object
+        # I'll store the name as a public class attribute
+        self.temp_dir_name = self._temp_dir.name
 
         self.momentum = 0.9
         self.dry_run = False
         self.learning_rate = 0.01
+        # None because its expected to be set by the job parameters
         self.sample_rate = None
         self.is_shuffled = True
         self.batch_size = 32
         self.epochs = 10
 
-    def train(self):
+    def process(self):
         """Training, assuming job is on urbansound dataset"""
+
+        # Validate job and inject dependencies here to track logging & cleanup better
+        # in __exit__ method.
+        self._validate_job()
+        self.__inject()
 
         urban_metadata = self.data_path / "metadata/UrbanSound8K.csv"
         urban_audio = self.data_path / "audio"
@@ -132,7 +142,7 @@ class TrainingJob:
                 fold_idx,
                 losses_for_fold,
                 accs_for_fold,
-                archive_path=Path(self.temp_dir.name),
+                archive_path=Path(self._temp_dir.name),
             )
             self.fold_accuracies.append(vacc)
 
@@ -141,7 +151,7 @@ class TrainingJob:
         end_time = time.time()
         training_duration = end_time - start_time
 
-        plot_final_results(self.fold_accuracies, archive_path=Path(self.temp_dir.name))
+        plot_final_results(self.fold_accuracies, archive_path=Path(self._temp_dir.name))
         self.kfold_valication_acc = np.mean(self.fold_accuracies)
         logger.info(f"Training time: {training_duration:.2f} seconds")
 
@@ -154,9 +164,6 @@ class TrainingJob:
 
         with open(self.path, "r") as f:
             self.job = yaml.load(f, yaml.FullLoader)
-
-        self._validate_job()
-        self.__inject()
 
         return self
 
@@ -173,7 +180,7 @@ class TrainingJob:
         else:
             self._success_processing()
 
-        self.temp_dir.cleanup()
+        self._temp_dir.cleanup()
 
         return False
 
@@ -189,6 +196,7 @@ class TrainingJob:
         assert "ml_parameters" in self.job
         assert "epochs" in self.job["ml_parameters"]
         assert "audio_parameters" in self.job
+        assert "sample_rate" in self.job["audio_parameters"]
         assert "job_parameters" in self.job
 
     def __inject(self):

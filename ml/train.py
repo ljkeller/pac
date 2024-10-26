@@ -17,34 +17,33 @@ logging.basicConfig(
 from runner import TrainingJob, get_job_files  # noqa: E402
 
 
-def run_jobs(jobs_path=Path("./jobs")):
+def process_training_batch(jobs_path=Path("./jobs")):
     """Run all jobs in the jobs directory"""
 
+    root_logger = logging.getLogger()
     for job_path in get_job_files(jobs_path):
-        # TODO: Move log into tmpdir?
-
-        # Start job-specific logging
-        file_handler = logging.FileHandler(f"./{job_path.name}.log")
-        file_handler.setLevel(log_level)
-        file_handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        )
-
-        root_logger = logging.getLogger()
-        root_logger.setLevel(log_level)
-        root_logger.addHandler(file_handler)
+        file_handler = None
         try:
             root_logger.info(f"Starting job {job_path.name}.")
-            with TrainingJob(job_path) as job:
-                job.train()
+            with TrainingJob(job_path) as training_job:
+                # Each training job is allocated its own log file, to be stored
+                # in the job's archive
+                print(f"{training_job.temp_dir_name}/{job_path.name}.log")
+                file_handler = logging.FileHandler(
+                    f"{training_job.temp_dir_name}/{job_path.name}.log"
+                )
+                root_logger.addHandler(file_handler)
+
+                training_job.process()
             root_logger.info(f"Finished job {job_path.name}.")
         finally:
-            root_logger.removeHandler(file_handler)
-            file_handler.close()
+            if file_handler:
+                root_logger.removeHandler(file_handler)
+                file_handler.close()
 
 
 def main():
-    run_jobs()
+    process_training_batch()
 
 
 if __name__ == "__main__":
