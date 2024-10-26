@@ -1,7 +1,7 @@
 """runner.py: Batch process ML training jobs"""
 
 import logging
-import tempfile
+import re
 import time
 from datetime import datetime
 from pathlib import Path
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_job_files(jobs_path=Path("./jobs")):
-    """Get all job files from the jobs directory"""
+    """Get all job files from the jobs directory as a list of Path objects"""
 
     # jobs starting with _ are ignored, like the default job
     return [
@@ -53,19 +53,53 @@ def _evaluate_expression(value):
 
 
 class TrainingJob:
-    """Encapsule ml training jobs with conventional Torch training styles & architectures"""
+    """Train ML using a YAML configuration file
 
-    def __init__(self, job_path):
+    The job configuration is expected to be cloned from the default job in the jobs directory.
+
+    Training results, plots, and logs are stored in a directory named after the ML model and its performance.
+
+    Hooked into logging module, just set the root logger level to see logs.
+
+    Example
+    -------
+    >>> with TrainingJob("jobs/mini_cnn.yaml") as job:
+    >>>     job.process()
+
+    """
+
+    def __init__(self, job_path: Path, results_parent_dir: Path = Path("./results")):
+        """
+        Initialize a training job. Run the job with TrainingJob.process() method.
+
+        Args:
+            job_path (Path): Path to the job configuration file.
+            results_parent_dir (Path): Path to the parent directory where each job result
+            is stored
+        """
+
         self.path = job_path
         self.job = {}
         self.start_time = 0.0
         self.layers = []
         self.fold_accuracies = []
 
-        self._temp_dir = tempfile.TemporaryDirectory()
-        # to avoid confusion with the TemporaryDirectory object
-        # I'll store the name as a public class attribute
-        self.temp_dir_name = self._temp_dir.name
+        retry_mkdir = True
+        idx = 1
+        self.results_dir = results_parent_dir / job_path.stem
+        while retry_mkdir:
+            try:
+                self.results_dir.mkdir(exist_ok=False, parents=True)
+                retry_mkdir = False
+            except FileExistsError:
+                next_stem = f"{job_path.stem}_{idx}"
+                logger.warning(
+                    f"Results directory {self.results_dir} exists. Trying {results_parent_dir/next_stem}"
+                )
+                self.results_dir = results_parent_dir / next_stem
+                idx += 1
+
+        logger.info(f"{job_path} Results directory: {self.results_dir}")
 
         self.momentum = 0.9
         self.dry_run = False
@@ -142,7 +176,7 @@ class TrainingJob:
                 fold_idx,
                 losses_for_fold,
                 accs_for_fold,
-                archive_path=Path(self._temp_dir.name),
+                archive_path=self.results_dir,
             )
             self.fold_accuracies.append(vacc)
 
@@ -151,7 +185,7 @@ class TrainingJob:
         end_time = time.time()
         training_duration = end_time - start_time
 
-        plot_final_results(self.fold_accuracies, archive_path=Path(self._temp_dir.name))
+        plot_final_results(self.fold_accuracies, archive_path=self.results_dir)
         self.kfold_valication_acc = np.mean(self.fold_accuracies)
         logger.info(f"Training time: {training_duration:.2f} seconds")
 
@@ -179,8 +213,6 @@ class TrainingJob:
             self._failure_processing(exc_type, exc_value, traceback)
         else:
             self._success_processing()
-
-        self._temp_dir.cleanup()
 
         return False
 
@@ -240,11 +272,17 @@ class TrainingJob:
 
         dtime = datetime.now().strftime("%Y-%m-%d_%H-%M")
         exc = str(exc_type) if exc_type else "fail"
-        dirname = f"{dtime}_{self.model_name}_E{self.epochs}_Exc{exc}"
+        # Remove non-alphanumeric characters
+        exc = re.sub(r"\W+", "", exc)
 
-        # TODO:
-        # mkdir dirname
-        # move contents from tmpdir to dirname
+        dirname = f"{dtime}_{self.model_name}_E{self.epochs}_{exc}"
+
+        while (self.results_dir.parent / dirname).exists():
+            logger.warning(f"Directory {dirname} exists. Trying again")
+            dtime = datetime.now().strftime("%Y-%m-%d_%H-%M")
+            dirname = f"{dtime}_{self.model_name}_E{self.epochs}_{exc}"
+
+        self.results_dir.rename(self.results_dir.parent / dirname)
 
     def _success_processing(self):
         logger.info("Job trained succesfully- performing post-processing.")
@@ -252,6 +290,9 @@ class TrainingJob:
         dtime = datetime.now().strftime("%Y-%m-%d_%H-%M")
         dirname = f"{dtime}_{self.model_name}_E{self.epochs}_Acc{self.kfold_valication_acc*100:.2f}"
 
-        # TODO:
-        # mkdir dirname
-        # move contents from tmpdir to dirname
+        while (self.results_dir.parent / dirname).exists():
+            logger.warning(f"Directory {dirname} exists. Trying again")
+            dtime = datetime.now().strftime("%Y-%m-%d_%H-%M")
+            dirname = f"{dtime}_{self.model_name}_E{self.epochs}_Acc{self.kfold_valication_acc*100:.2f}"
+
+        self.results_dir.rename(self.results_dir.parent / dirname)

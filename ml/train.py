@@ -28,9 +28,12 @@ def process_training_batch(jobs_path=Path("./jobs")):
             with TrainingJob(job_path) as training_job:
                 # Each training job is allocated its own log file, to be stored
                 # in the job's archive
-                print(f"{training_job.temp_dir_name}/{job_path.name}.log")
                 file_handler = logging.FileHandler(
-                    f"{training_job.temp_dir_name}/{job_path.name}.log"
+                    f"{training_job.results_dir}/{job_path.stem}.log"
+                )
+                file_handler.setLevel(numeric_log_level)
+                file_handler.setFormatter(
+                    logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
                 )
                 root_logger.addHandler(file_handler)
 
