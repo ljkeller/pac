@@ -27,13 +27,15 @@ def _get_jobs(jobs_path=Path("./jobs")):
     ]
 
 
-def run_jobs(jobs_path=Path("./jobs"), level=logging.INFO):
+def run_jobs(jobs_path=Path("./jobs"), log_level=logging.INFO):
     """Run all jobs in the jobs directory"""
+    logger.setLevel(log_level)
 
     for job_path in _get_jobs(jobs_path):
         # TODO: Move log into tmpdir?
         file_handler = logging.FileHandler(f"./{job_path.name}.log")
-        file_handler.setLevel(level)
+        file_handler.setLevel(log_level)
+
         formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         file_handler.setFormatter(formatter)
 

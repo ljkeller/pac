@@ -4,6 +4,7 @@ from runner import run_jobs
 
 
 def main():
+    # TODO: set root level file logger for entire run?
     logging.basicConfig(level=logging.INFO)
 
     run_jobs()

@@ -1,3 +1,5 @@
+import io
+import logging
 import re
 
 import pandas as pd
@@ -7,9 +9,10 @@ import torchaudio
 import torchaudio.transforms as T
 from torch.utils.data import Dataset
 
-# print(f'Torch version: {torch.__version__}')
-# print(f'Torchaudio version: {torchaudio.__version__}')
-# print(f'Torch cuda enabled: {torch.cuda.is_available()}')
+logger = logging.getLogger(__name__)
+logging.debug(f"Torch version: {torch.__version__}")
+logging.debug(f"Torchaudio version: {torchaudio.__version__}")
+logging.debug(f"Torch cuda enabled: {torch.cuda.is_available()}")
 TARGET_SAMPLE_RATE = 22050
 TARGET_DURATION = 4
 
@@ -36,6 +39,7 @@ def examine_urban_sound_df(df):
 
 
 def train_one_epoch(dl, model, optimizer, loss_fn, device):
+    logger.debug("Training one epoch")
     model.train()
 
     running_loss = 0.0
@@ -46,14 +50,18 @@ def train_one_epoch(dl, model, optimizer, loss_fn, device):
 
     for batch_idx, batch in enumerate(dl):
         (Xs, ys) = batch["spectrogram"].to(device), batch["label"].to(device)
+        logger.debug(f"Batch {batch_idx} | Xs shape: {Xs.shape} | ys shape: {ys.shape}")
 
         optimizer.zero_grad()
 
         yhats = model(Xs)
         _, yhats_as_idx = torch.max(yhats, 1)
+        logger.debug(f"Training ground truth: {ys}")
+        logger.debug(f"Training predictions: {yhats_as_idx}")
 
         loss = loss_fn(yhats, ys)
         loss.backward()
+        logger.debug(f"Training epoch loss: {loss.item()}")
 
         optimizer.step()
 
@@ -73,6 +81,7 @@ def train_one_epoch(dl, model, optimizer, loss_fn, device):
     #             running_batch_loss = 0
 
     accuracy = correct / total
+    logger.debug(f"Epoch accuracy: {accuracy*100:.2f}%")
     return running_loss / (batch_idx + 1), accuracy
 
 
@@ -89,14 +98,18 @@ def validate(validation_dl, model, loss_fn, device):
 
             vyhats = model(vXs)
             _, vyhats_as_idx = torch.max(vyhats, 1)
+            logger.debug(f"Validation ground truth: {vys}")
+            logger.debug(f"Validation predictions: {vyhats_as_idx}")
             vloss = loss_fn(vyhats, vys)
             running_vloss += vloss
 
             total += vys.size(0)
             correct += (vys == vyhats_as_idx).sum().item()
+            logger.debug(f"Correct: {correct} | Total: {total}")
     #             print(f'Validation ground truth {vys}')
     #             print(f'Validation redictions {vyhats_as_idx}')
     accuracy = correct / total
+    logger.debug(f"Validation accuracy: {accuracy*100:.2f}%")
     return running_vloss.to("cpu") / (batch_idx + 1), accuracy
 
 
@@ -121,24 +134,31 @@ def k_fold_urban_sound(metadata_path, dry_run=False):
 
     """
     folds = []
+    logger.debug(f"Reading UrbanSound8K metadata from: {metadata_path}")
     frame = pd.read_csv(metadata_path)
-    frame.info()
+    logger.info("UrbanSound8K metadata:")
 
-    print("\nSummarizing folds:")
-    print("-----------------------------------------------------------")
+    # redirect workaround for pd.DataFrame.info()
+    buffer = io.StringIO()
+    frame.info(buf=buffer)
+    info_str = buffer.getvalue()
+    logger.info(info_str)
+
+    logger.info("\nSummarizing folds:")
+    logger.info("-----------------------------------------------------------")
     for i in range(1, 11):
         train_mask = frame["fold"] != i
         validation_mask = frame["fold"] == i
         # TODO: Duration mask?
 
-        print(f"Training set size for fold {i} : {len(frame[train_mask])}")
+        logger.info(f"Training set size for fold {i} : {len(frame[train_mask])}")
         train = frame[train_mask]
-        print("Training set info: \n")
+        logger.info("Training set info: \n")
         examine_urban_sound_df(train)
 
-        print(f"Validation set size for fold {i} : {len(frame[validation_mask])}")
+        logger.info(f"Validation set size for fold {i} : {len(frame[validation_mask])}")
         validation = frame[validation_mask]
-        print("Validation set info: \n")
+        logger.info("Validation set info: \n")
         examine_urban_sound_df(validation)
 
         train_paths = train.apply(
@@ -158,8 +178,8 @@ def k_fold_urban_sound(metadata_path, dry_run=False):
                 ],
             }
         )
-        print("-----------------------------------------------------------")
-    print("\n\n")
+        logger.info("-----------------------------------------------------------")
+    logger.info("\n\n")
 
     return folds
 
@@ -212,6 +232,9 @@ class UrbanSoundDataSet(Dataset):
         self.target_duration = target_duration
         self.transform = transform
         self.mel_kwargs = mel_kwargs if mel_kwargs is not None else {}
+        logger.debug(f"Mel kwargs: {self.mel_kwargs}")
+        logger.debug(f"Sample rate: {self.resampled_sample_rate}")
+        logger.debug(f"Target duration: {self.target_duration}")
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
