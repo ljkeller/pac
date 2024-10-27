@@ -68,6 +68,10 @@ def plot_final_results(fold_accuracies, archive_path: Optional[Path] = None):
 
     plt.subplot(1, 2, 1)
     plt.plot(fold_accuracies, label="Fold Accuracies")
+    plt.xlabel("Folds")
+    plt.ylabel("Accuracy")
+    plt.title("Accuracy over Folds")
+    plt.legend()
 
     plt.subplot(1, 2, 2)
     plt.axhline(y=int(BASELINE_MODEL_ACCURACY), color="r")

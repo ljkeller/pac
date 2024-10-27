@@ -107,10 +107,9 @@ def validate(validation_dl, model, loss_fn, device):
             total += vys.size(0)
             correct += (vys == vyhats_as_idx).sum().item()
             logger.debug(f"Correct: {correct} | Total: {total}")
-    #             print(f'Validation ground truth {vys}')
-    #             print(f'Validation redictions {vyhats_as_idx}')
     accuracy = correct / total
     logger.debug(f"Validation accuracy: {accuracy*100:.2f}%")
+
     return running_vloss.to("cpu") / (batch_idx + 1), accuracy
 
 

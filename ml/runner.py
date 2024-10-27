@@ -83,6 +83,8 @@ class TrainingJob:
         self.job = {}
         self.start_time = 0.0
         self.layers = []
+
+        # TODO: remove
         self.fold_accuracies = []
 
         retry_mkdir = True
@@ -130,12 +132,7 @@ class TrainingJob:
         for fold_idx, fold_bundle in enumerate(tqdm(folds, desc="Fold progress")):
             logger.debug(f"<Fold {fold_idx}>")
 
-            # TODO: Ensure model is reinitialized for each fold
-            # TODO: Get new layers each time
-            model = self.get_new_model()
-            optimizer = torch.optim.SGD(
-                model.parameters(), lr=self.learning_rate, momentum=self.momentum
-            )
+            model, optimizer = self._get_sanitized_training_state()
 
             train_ds = UrbanSoundDataSet(
                 urban_audio,
@@ -161,7 +158,8 @@ class TrainingJob:
             )
 
             losses_for_fold, accs_for_fold = [], []
-            vacc = 0
+            vacc, acc = 0, 0
+            avg_loss, avg_vloss = 0, 0
             for _ in tqdm(range(self.epochs), desc="Epochs"):
                 avg_loss, acc = train_one_epoch(
                     train_dl, model, optimizer, self.loss_fn, self.device
@@ -195,7 +193,8 @@ class TrainingJob:
 
     def get_new_model(self):
         logger.debug("Getting new model.")
-        return RuntimeNN(self.model_name, self.layers).to(self.device)
+        # Return a new model with the same architecture
+        return RuntimeNN(self.model_name, self._get_model_layers()).to(self.device)
 
     def __enter__(self):
         self.start_time = time.time()
@@ -208,7 +207,6 @@ class TrainingJob:
     def __exit__(self, exc_type, exc_value, traceback):
         self.end_time = time.time()
 
-        # TODO: save job data: logs, pictures, model, etc... in completed dir.
         logger.info(
             "Job duration: {:.2f} seconds".format(self.end_time - self.start_time)
         )
@@ -236,10 +234,10 @@ class TrainingJob:
         assert "sample_rate" in self.job["audio_parameters"]
         assert "job_parameters" in self.job
 
-    def __inject(self):
-        """Injects dependencies. Assumes inputs are validated / healthy"""
-        self.model_name = self.job["model"]["name"]
+    def _get_model_layers(self):
+        """Get the model layers from the job configuration"""
 
+        layers = []
         for layer in self.job["model"]["architecture"]:
             cls = getattr(torch.nn, layer["layer_type"])
             layer_params = {
@@ -247,7 +245,25 @@ class TrainingJob:
                 for key, value in layer.items()
                 if key != "layer_type"
             }
-            self.layers.append(cls(**layer_params))
+            layers.append(cls(**layer_params))
+
+        return layers
+
+    def _get_sanitized_training_state(self):
+        """Get a new model and optimizer for training, as weights need sanitizing between folds"""
+
+        model = self.get_new_model()
+        optimizer = torch.optim.SGD(
+            model.parameters(), lr=self.learning_rate, momentum=self.momentum
+        )
+
+        return model, optimizer
+
+    def __inject(self):
+        """Injects dependencies. Assumes inputs are validated / healthy"""
+        self.model_name = self.job["model"]["name"]
+
+        self.layers = self._get_model_layers()
         logger.debug(f"Injected layers: {self.layers}")
 
         for key, value in self.job["ml_parameters"].items():
@@ -273,7 +289,9 @@ class TrainingJob:
     def _failure_processing(self, exc_type, exc_value, traceback):
         logger.critical(f"Job failed with exception: {exc_type}.")
         logger.critical(f"Exception message: {exc_value}.")
-        logger.critical(f"Traceback: {traceback}")
+
+        # exc_info=True will pass the traceback to logger
+        logger.critical("Traceback: ", exc_info=True)
 
         dtime = datetime.now().strftime("%Y-%m-%d_%H-%M")
         exc = str(exc_type) if exc_type else "fail"
