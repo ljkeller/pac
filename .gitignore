@@ -166,3 +166,7 @@ Untitled*.ipynb
 
 # Data
 [Ss]ample*
+results/
+
+# Jobs
+*.yaml

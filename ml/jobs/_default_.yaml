@@ -53,6 +53,5 @@ mel_kwargs:
 job_parameters: # Injected into job
   dry_run: False
   data_path: '~/sound_datasets/urbansound8k'
-  verbose: True
   device: 'cuda'
   repeat: 0

@@ -5,7 +5,6 @@ import os
 import time
 from pathlib import Path
 
-# TODO: remove verbosity level from yaml
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 numeric_log_level = getattr(logging, log_level, logging.WARNING)
 
@@ -46,6 +45,9 @@ def process_training_batch(jobs_path=Path("./jobs")):
 
                 training_job.process()
             root_logger.info(f"Finished job {job_path.name}.")
+        except Exception as e:
+            root_logger.error(f"Error processing job {job_path.name}.")
+            root_logger.error(e)
         finally:
             if file_handler:
                 root_logger.removeHandler(file_handler)
@@ -58,6 +60,7 @@ def process_training_batch(jobs_path=Path("./jobs")):
 
 def main():
     process_training_batch()
+    logging.getLogger().info("All jobs processed.")
 
 
 if __name__ == "__main__":

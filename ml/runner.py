@@ -2,6 +2,7 @@
 
 import logging
 import re
+import shutil
 import time
 from datetime import datetime
 from pathlib import Path
@@ -129,6 +130,8 @@ class TrainingJob:
         for fold_idx, fold_bundle in enumerate(tqdm(folds, desc="Fold progress")):
             logger.debug(f"<Fold {fold_idx}>")
 
+            # TODO: Ensure model is reinitialized for each fold
+            # TODO: Get new layers each time
             model = self.get_new_model()
             optimizer = torch.optim.SGD(
                 model.parameters(), lr=self.learning_rate, momentum=self.momentum
@@ -185,6 +188,7 @@ class TrainingJob:
         end_time = time.time()
         training_duration = end_time - start_time
 
+        # TODO: Save models?
         plot_final_results(self.fold_accuracies, archive_path=self.results_dir)
         self.kfold_valication_acc = np.mean(self.fold_accuracies)
         logger.info(f"Training time: {training_duration:.2f} seconds")
@@ -214,6 +218,7 @@ class TrainingJob:
         else:
             self._success_processing()
 
+        logger.info(f"Job results stored in: {self.results_dir}")
         return False
 
     def _validate_job(self):
@@ -279,14 +284,13 @@ class TrainingJob:
 
         while (self.results_dir.parent / dirname).exists():
             logger.warning(f"Directory {dirname} exists. Trying again")
-            dtime = datetime.now().strftime("%Y-%m-%d_%H-%M")
+            dtime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             dirname = f"{dtime}_{self.model_name}_E{self.epochs}_{exc}"
 
-        self.results_dir.rename(self.results_dir.parent / dirname)
+        self.results_dir = self.results_dir.rename(self.results_dir.parent / dirname)
 
-        # TODO: copy file over?
-        # new_job_path = self.results_dir / f"{self.job_path.name}"
-        # self.job_path.rename(new_job_path)
+        # Leave the original YAML file in jobs directory so it can be re-run
+        shutil.copyfile(self.job_path, self.results_dir / f"{self.job_path.name}")
 
     def _success_processing(self):
         logger.info("Job trained succesfully- performing post-processing.")
@@ -296,9 +300,9 @@ class TrainingJob:
 
         while (self.results_dir.parent / dirname).exists():
             logger.warning(f"Directory {dirname} exists. Trying again")
-            dtime = datetime.now().strftime("%Y-%m-%d_%H-%M")
+            dtime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             dirname = f"{dtime}_{self.model_name}_E{self.epochs}_Acc{self.kfold_valication_acc*100:.2f}"
 
-        self.results_dir.rename(self.results_dir.parent / dirname)
+        self.results_dir = self.results_dir.rename(self.results_dir.parent / dirname)
         new_job_path = self.results_dir / f"{self.job_path.name}"
-        self.job_path.rename(new_job_path)
+        self.job_path = self.job_path.rename(new_job_path)
