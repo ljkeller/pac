@@ -129,7 +129,9 @@ class TrainingJob:
         logger.info(f"-----{len(folds)}-Fold Cross Validation-----")
         start_time = time.time()
 
-        for fold_idx, fold_bundle in enumerate(tqdm(folds, desc="Fold progress")):
+        for fold_idx, fold_bundle in enumerate(
+            tqdm(folds, desc="Fold progress", colour="green")
+        ):
             logger.debug(f"<Fold {fold_idx}>")
 
             model, optimizer = self._get_sanitized_training_state()
@@ -160,7 +162,7 @@ class TrainingJob:
             losses_for_fold, accs_for_fold = [], []
             vacc, acc = 0, 0
             avg_loss, avg_vloss = 0, 0
-            for _ in tqdm(range(self.epochs), desc="Epochs"):
+            for _ in tqdm(range(self.epochs), desc="Epochs", colour="yellow"):
                 avg_loss, acc = train_one_epoch(
                     train_dl, model, optimizer, self.loss_fn, self.device
                 )

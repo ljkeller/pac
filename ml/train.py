@@ -16,6 +16,7 @@ logging.basicConfig(
 )
 
 from runner import TrainingJob, get_job_files  # noqa: E402
+from tqdm import tqdm  # noqa: E402
 
 
 def process_training_batch(jobs_path=Path("./jobs")):
@@ -26,7 +27,7 @@ def process_training_batch(jobs_path=Path("./jobs")):
     jobs = get_job_files(jobs_path)
     jobs_len = len(jobs)
     root_logger.info(f"Found {jobs_len} jobs to process.")
-    for idx, job_path in enumerate(jobs):
+    for idx, job_path in enumerate(tqdm(jobs, desc="Jobs processed", colour="cyan")):
         root_logger.info(f"Processing job {job_path.name}")
         file_handler = None
         try:
@@ -46,7 +47,7 @@ def process_training_batch(jobs_path=Path("./jobs")):
                 training_job.process()
             root_logger.info(f"Finished job {job_path.name}.")
         except Exception as e:
-            root_logger.error(f"Error processing job {job_path.name}.")
+            root_logger.error(f"Error procesging job {job_path.name}.")
             root_logger.error(e)
         finally:
             if file_handler:
