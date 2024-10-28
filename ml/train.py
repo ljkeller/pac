@@ -47,7 +47,7 @@ def process_training_batch(jobs_path=Path("./jobs")):
                 training_job.process()
             root_logger.info(f"Finished job {job_path.name}.")
         except Exception as e:
-            root_logger.error(f"Error procesging job {job_path.name}.")
+            root_logger.error(f"Error processing job {job_path.name}.")
             root_logger.error(e)
         finally:
             if file_handler:
