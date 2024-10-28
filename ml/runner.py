@@ -130,7 +130,7 @@ class TrainingJob:
         start_time = time.time()
 
         for fold_idx, fold_bundle in enumerate(
-            tqdm(folds, desc="Fold progress", colour="green")
+            tqdm(folds, desc=f"{self.job_path.stem} Fold progress", colour="green")
         ):
             logger.debug(f"<Fold {fold_idx}>")
 

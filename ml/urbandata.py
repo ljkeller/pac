@@ -21,22 +21,22 @@ BASELINE_MODEL_ACCURACY = 0.68
 
 
 def examine_urban_sound_df(df):
-    """Gather and print statistics about the UrbanSound8K dataset"""
+    """Gather and log statistics about the UrbanSound8K dataset"""
     df_copy = df.copy()
     total = len(df_copy)
 
-    print(f"Total samples: {total}")
-    print(f"{'Class':<16} | {'Frequency':<10} | {'Percentage':<10}")
-    print("-" * 40)
+    logger.debug(f"Total samples: {total}")
+    logger.debug(f"{'Class':<16} | {'Frequency':<10} | {'Percentage':<10}")
+    logger.debug("-" * 40)
 
     distribution = df_copy["class"].value_counts()
     for cls, freq in distribution.items():
         percentage = (freq / total) * 100
-        print(f"{cls:<16} | {freq:<10} | {percentage:.2f}%")
-    print("-" * 40 + "\n")
+        logger.debug(f"{cls:<16} | {freq:<10} | {percentage:.2f}%")
+    logger.debug("-" * 40 + "\n")
 
     df_copy["duration"] = df_copy["end"] - df_copy["start"]
-    print(f"Duration statistics: \n{df_copy['duration'].describe()}")
+    logger.debug(f"Duration statistics: \n{df_copy['duration'].describe()}")
 
 
 def train_one_epoch(dl, model, optimizer, loss_fn, device):
@@ -136,29 +136,31 @@ def k_fold_urban_sound(metadata_path, dry_run=False):
     folds = []
     logger.debug(f"Reading UrbanSound8K metadata from: {metadata_path}")
     frame = pd.read_csv(metadata_path)
-    logger.info("UrbanSound8K metadata:")
+    logger.debug("UrbanSound8K metadata:")
 
     # redirect workaround for pd.DataFrame.info()
     buffer = io.StringIO()
     frame.info(buf=buffer)
     info_str = buffer.getvalue()
-    logger.info(info_str)
+    logger.debug(info_str)
 
-    logger.info("\nSummarizing folds:")
-    logger.info("-----------------------------------------------------------")
+    logger.debug("\nSummarizing folds:")
+    logger.debug("-----------------------------------------------------------")
     for i in range(1, 11):
         train_mask = frame["fold"] != i
         validation_mask = frame["fold"] == i
         # TODO: Duration mask?
 
-        logger.info(f"Training set size for fold {i} : {len(frame[train_mask])}")
+        logger.debug(f"Training set size for fold {i} : {len(frame[train_mask])}")
         train = frame[train_mask]
-        logger.info("Training set info: \n")
+        logger.debug("Training set info: \n")
         examine_urban_sound_df(train)
 
-        logger.info(f"Validation set size for fold {i} : {len(frame[validation_mask])}")
+        logger.debug(
+            f"Validation set size for fold {i} : {len(frame[validation_mask])}"
+        )
         validation = frame[validation_mask]
-        logger.info("Validation set info: \n")
+        logger.debug("Validation set info: \n")
         examine_urban_sound_df(validation)
 
         train_paths = train.apply(
@@ -178,8 +180,8 @@ def k_fold_urban_sound(metadata_path, dry_run=False):
                 ],
             }
         )
-        logger.info("-----------------------------------------------------------")
-    logger.info("\n\n")
+        logger.debug("-----------------------------------------------------------")
+    logger.debug("\n\n")
 
     return folds
 

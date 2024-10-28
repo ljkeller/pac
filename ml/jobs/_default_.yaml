@@ -33,8 +33,6 @@ model:
     - layer_type: Linear
       in_features: 256
       out_features: 10
-    - layer_type: Softmax
-      dim: 1
 ml_parameters: # Injected into job
   # From torch.nn
   loss_fn: CrossEntropyLoss
