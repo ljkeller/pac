@@ -1,5 +1,6 @@
 """runner.py: Batch process ML training jobs"""
 
+import heapq
 import logging
 import re
 import shutil
@@ -53,6 +54,43 @@ def _evaluate_expression(value):
         raise ValueError("Failed to evaluate expression {}. {}".format(value, e))
 
 
+class ModelHeap:
+    """
+    Heap to store the best models by accuracy.
+
+    Especially useful for a k-fold cross validation
+    """
+
+    def __init__(self, max_size):
+        self.max_size = max_size
+        self.heap = []
+
+    def push(self, model, acc):
+        """Push a model and its accuracy onto the heap"""
+
+        if len(self.heap) < self.max_size:
+            heapq.heappush(self.heap, (acc, model))
+        elif acc > self.heap[0][0]:
+            heapq.heappushpop(self.heap, (acc, model))
+            logger.debug(
+                f"Found better model with accuracy: {acc*100:.2f}%, popping lowest acc model."
+            )
+
+    def get_best_acc_model_pair(self):
+        """Get the best (accuracy, model) pair from the heap
+
+        Returns:
+            Tuple[None, None], or Tuple[float, torch.nn.Module]: The best accuracy and model pair
+        """
+        return heapq.nlargest(1, self.heap)[0] if self.heap else (None, None)
+
+    def __iter__(self):
+        """Iterate over the heap, yielding the (accuracy, model) pairs in descending order of accuracy"""
+
+        for pair in heapq.nlargest(len(self.heap), self.heap):
+            yield pair
+
+
 class TrainingJob:
     """Train ML using a YAML configuration file
 
@@ -84,8 +122,7 @@ class TrainingJob:
         self.start_time = 0.0
         self.layers = []
 
-        # TODO: remove
-        self.fold_accuracies = []
+        self.model_heap = ModelHeap(3)
 
         retry_mkdir = True
         idx = 1
@@ -129,6 +166,7 @@ class TrainingJob:
         logger.info(f"-----{len(folds)}-Fold Cross Validation-----")
         start_time = time.time()
 
+        fold_accuracies = []
         for fold_idx, fold_bundle in enumerate(
             tqdm(folds, desc=f"{self.job_path.stem} Fold progress", colour="green")
         ):
@@ -175,13 +213,16 @@ class TrainingJob:
             #         print(f'LOSS train {avg_loss} val {avg_vloss}')
             logger.debug(f"Fold accuracy: {vacc*100:.2f}%")
 
+            logger.info(f"New model added to heap with accuracy: {vacc*100:.2f}%")
+            self.model_heap.push(model, vacc)
+
             plot_fold_results(
                 fold_idx,
                 losses_for_fold,
                 accs_for_fold,
                 archive_path=self.results_dir,
             )
-            self.fold_accuracies.append(vacc)
+            fold_accuracies.append(vacc)
 
             logger.debug(f"</Fold {fold_idx}>")
 
@@ -189,8 +230,8 @@ class TrainingJob:
         training_duration = end_time - start_time
 
         # TODO: Save models?
-        plot_final_results(self.fold_accuracies, archive_path=self.results_dir)
-        self.kfold_valication_acc = np.mean(self.fold_accuracies)
+        plot_final_results(fold_accuracies, archive_path=self.results_dir)
+        self.kfold_valication_acc = np.mean(fold_accuracies)
         logger.info(f"Training time: {training_duration:.2f} seconds")
 
     def get_new_model(self):
@@ -207,19 +248,30 @@ class TrainingJob:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.end_time = time.time()
+        ret = False
 
+        self.end_time = time.time()
         logger.info(
             "Job duration: {:.2f} seconds".format(self.end_time - self.start_time)
         )
 
+        for acc, model in self.model_heap:
+            logger.debug(f"Saving model with accuracy: {acc*100:.2f}%")
+            # torch will overwrite duplicates, which is fine
+            torch.save(model, self.results_dir / f"model_{acc*100:.5f}.pt")
+
         if exc_type is not None:
             self._failure_processing(exc_type, exc_value, traceback)
+
+            # Return True to suppress the exception
+            # https://docs.python.org/3/reference/datamodel.html#object.__exit__
+            ret = True
         else:
             self._success_processing()
 
-        logger.info(f"Job results stored in: {self.results_dir}")
-        return False
+        logger.info(f"Job results store in: {self.results_dir}")
+
+        return ret
 
     def _validate_job(self):
         """
